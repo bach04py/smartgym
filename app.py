@@ -63,7 +63,7 @@ class CustomerPayload(BaseModel):
     phone_number: str | None = None
     gender: str | None = None
     weight_kg: float | None = None
-    age: int | None = None
+    birthday: str | None = None
 
 # =========================================
 # GLOBAL DATA
@@ -145,6 +145,10 @@ def init_db():
                 customer_name TEXT NOT NULL,
                 pt_name TEXT NOT NULL,
                 device_id TEXT NOT NULL UNIQUE,
+                phone_number TEXT,
+                gender TEXT,
+                weight_kg REAL,
+                birthday TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -174,16 +178,30 @@ def init_db():
         if 'phone_number' not in cols:
             conn.execute("ALTER TABLE customers ADD COLUMN phone_number TEXT")
             conn.commit()
-        # Add new columns: gender, weight_kg, age for customer profile if missing
+        # Add new columns for customer profile if missing
         if 'gender' not in cols:
             conn.execute("ALTER TABLE customers ADD COLUMN gender TEXT")
             conn.commit()
         if 'weight_kg' not in cols:
             conn.execute("ALTER TABLE customers ADD COLUMN weight_kg REAL")
             conn.commit()
-        if 'age' not in cols:
-            conn.execute("ALTER TABLE customers ADD COLUMN age INTEGER")
+        if 'birthday' not in cols:
+            conn.execute("ALTER TABLE customers ADD COLUMN birthday TEXT")
             conn.commit()
+            # if an older age column exists, use it to seed a rough birthday value
+            if 'age' in cols:
+                rows = conn.execute("SELECT id, age FROM customers WHERE age IS NOT NULL").fetchall()
+                for row in rows:
+                    try:
+                        birth_year = datetime.now().year - int(row['age'])
+                        birthday_value = f"{birth_year}-01-01"
+                        conn.execute(
+                            "UPDATE customers SET birthday = ? WHERE id = ?",
+                            (birthday_value, row['id'])
+                        )
+                    except Exception:
+                        continue
+                conn.commit()
 
 
 init_db()
@@ -459,6 +477,7 @@ async def export_database(request: Request):
         DB_PATH,
         media_type="application/x-sqlite3",
         filename=os.path.basename(DB_PATH),
+        headers={"Content-Disposition": f'attachment; filename="{os.path.basename(DB_PATH)}"'}
     )
 
 
@@ -646,15 +665,15 @@ async def add_or_update_customer(payload: CustomerPayload, request: Request):
 
         if row:
             conn.execute(
-                "UPDATE customers SET customer_name = ?, pt_name = ?, phone_number = ?, gender = ?, weight_kg = ?, age = ?, updated_at = ? WHERE id = ?",
-                (payload.customer_name, payload.pt_name, payload.phone_number, payload.gender, payload.weight_kg, payload.age, now, row["id"]) 
+                "UPDATE customers SET customer_name = ?, pt_name = ?, phone_number = ?, gender = ?, weight_kg = ?, birthday = ?, updated_at = ? WHERE id = ?",
+                (payload.customer_name, payload.pt_name, payload.phone_number, payload.gender, payload.weight_kg, payload.birthday, now, row["id"]) 
             )
             conn.commit()
             return {"status": "ok", "message": "Customer mapping updated."}
 
         conn.execute(
-            "INSERT INTO customers (customer_name, pt_name, device_id, phone_number, gender, weight_kg, age, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (payload.customer_name, payload.pt_name, payload.device_id, payload.phone_number, payload.gender, payload.weight_kg, payload.age, now, now)
+            "INSERT INTO customers (customer_name, pt_name, device_id, phone_number, gender, weight_kg, birthday, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (payload.customer_name, payload.pt_name, payload.device_id, payload.phone_number, payload.gender, payload.weight_kg, payload.birthday, now, now)
         )
         conn.commit()
         return {"status": "ok", "message": "Customer mapping created."}
@@ -669,7 +688,7 @@ async def get_customers(request: Request):
 
     with get_db_connection() as conn:
         rows = conn.execute(
-            "SELECT id, customer_name AS customer, pt_name, device_id, phone_number, gender, weight_kg, age, created_at, updated_at FROM customers ORDER BY customer_name"
+            "SELECT id, customer_name AS customer, pt_name, device_id, phone_number, gender, weight_kg, birthday, created_at, updated_at FROM customers ORDER BY customer_name"
         ).fetchall()
         return [dict(row) for row in rows]
 

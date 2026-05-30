@@ -27,37 +27,8 @@ async function downloadDatabase() {
         return;
     }
 
-    try {
-        const response = await fetch('/api/export-db', {
-            method: 'GET',
-            headers: getAuthHeaders()
-        });
-
-        if (!response.ok) {
-            const message = await response.text();
-            throw new Error(message || 'Failed to download database');
-        }
-
-        const blob = await response.blob();
-        const disposition = response.headers.get('Content-Disposition');
-        let filename = 'app.db';
-        if (disposition) {
-            const match = /filename="?([^";]+)"?/.exec(disposition);
-            if (match) filename = match[1];
-        }
-
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        console.error('Download failed:', error);
-        alert('Database download failed. Please check your admin session and try again.');
-    }
+    const downloadUrl = `/api/export-db?token=${encodeURIComponent(token)}`;
+    window.location.href = downloadUrl;
 }
 
 function setDefaultDate() {
@@ -89,7 +60,7 @@ async function saveCustomerMapping() {
                 phone_number: document.getElementById('phone-input')?.value?.trim() || null,
                 gender: document.getElementById('gender-select')?.value || null,
                 weight_kg: parseFloat(document.getElementById('weight-input')?.value) || null,
-                age: parseInt(document.getElementById('age-input')?.value) || null
+                birthday: document.getElementById('birthday-input')?.value || null
             })
         });
         const result = await response.json();
@@ -129,7 +100,7 @@ async function loadCustomers() {
                 <td>${customer.phone_number || ''}</td>
                 <td>${customer.gender || ''}</td>
                 <td>${customer.weight_kg != null ? customer.weight_kg : ''}</td>
-                <td>${customer.age != null ? customer.age : ''}</td>
+                <td>${customer.birthday || ''}</td>
                 <td>${customer.pt_name}</td>
                 <td>${new Date(customer.updated_at).toLocaleString()}</td>
                 <td><button class="action-btn" data-customer-id="${customer.id}">Show Graph</button></td>
