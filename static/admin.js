@@ -211,8 +211,15 @@ function renderWorkoutSummary(records) {
     const durationSeconds = Math.max(0, (sorted[sorted.length - 1].timestamp || 0) - (sorted[0].timestamp || 0));
     const averageHeartRate = Math.round(records.reduce((sum, record) => sum + (record.heart_rate || 0), 0) / records.length);
     const peakHeartRate = Math.max(...records.map(record => record.heart_rate || 0));
-    const durationMinutes = durationSeconds / 60;
-    const calories = Math.round(durationMinutes * Math.max(averageHeartRate, 80) * 0.6);
+    const calorieRecords = sorted.filter(record => (record.heart_rate || 0) > 90);
+    const calorieDurationSeconds = sorted.reduce((total, record, index) => {
+        if (index === sorted.length - 1 || (record.heart_rate || 0) <= 90) return total;
+        return total + Math.max(0, (sorted[index + 1].timestamp || 0) - (record.timestamp || 0));
+    }, 0);
+    const calorieAverageHeartRate = calorieRecords.length
+        ? calorieRecords.reduce((sum, record) => sum + (record.heart_rate || 0), 0) / calorieRecords.length
+        : 0;
+    const calories = Math.round((calorieDurationSeconds / 60) * calorieAverageHeartRate * 0.6);
 
     durationEl.textContent = `${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`;
     caloriesEl.textContent = calories.toString();
@@ -336,4 +343,3 @@ async function toggleGraphRow(customerId) {
         expandRow.style.display = 'none';
     }
 }
-
