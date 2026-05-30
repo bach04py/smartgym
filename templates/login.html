@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Hoàng Gia Gym & Fitness</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="top-bar">
+            <h1>Hoàng Gia Gym & Fitness</h1>
+            <a href="/" class="back-link">Back</a>
+        </div>
+
+        <div class="main-grid" style="justify-content: center; align-items: center; min-height: 80vh;">
+            <div class="login-modal" style="position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2>Admin Access Required</h2>
+                <form id="login-form" class="login-form">
+                    <div class="form-row">
+                        <label for="password-input">Admin Password</label>
+                        <input id="password-input" type="password" placeholder="Enter password" required />
+                    </div>
+                    <div class="form-row">
+                        <label><input id="remember-checkbox" type="checkbox" /> Remember me</label>
+                    </div>
+                    <div id="login-message" class="info-box"></div>
+                    <button type="submit" class="btn">Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password-input').value;
+            const messageNode = document.getElementById('login-message');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.token) {
+                    const remember = document.getElementById('remember-checkbox')?.checked;
+                    if (remember) localStorage.setItem('adminToken', result.token);
+                    else sessionStorage.setItem('adminToken', result.token);
+                    window.location.href = '/admin?token=' + result.token;
+                } else {
+                    messageNode.textContent = result.message || 'Login failed.';
+                    messageNode.className = 'info-box error';
+                }
+            } catch (error) {
+                console.error(error);
+                messageNode.textContent = 'Connection error.';
+                messageNode.className = 'info-box error';
+            }
+        });
+    </script>
+</body>
+</html>

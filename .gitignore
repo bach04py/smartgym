@@ -1,0 +1,22 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.venv
+env/
+instance/
+.pytest_cache/
+.DS_Store
+*.sqlite3
+*.db
+coverage/
+/.idea/
+/.vscode/
+
+# Node/static build artifacts
+node_modules/
+dist/
+build/
+
+# Railway/CI
+.railway/

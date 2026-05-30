@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin - Hoàng Gia Gym & Fitness</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="top-bar">
+            <h1>Admin Control Panel</h1>
+            <div class="top-bar-actions">
+                <button id="download-db-button" class="btn secondary">Download DB</button>
+                <button id="logout-button" class="logout-btn">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <section class="admin-panel">
+                <h2>Customer Management</h2>
+
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Register Device</h3>
+                    </div>
+                    <form id="customer-form" class="admin-form">
+                        <div class="form-row">
+                            <label for="device-id-input">Device ID</label>
+                            <input id="device-id-input" type="text" placeholder="Device ID" required />
+                        </div>
+                        <div class="form-row">
+                            <label for="customer-name-input">Customer Name</label>
+                            <input id="customer-name-input" type="text" placeholder="Customer Name" required />
+                        </div>
+                        <div class="form-row">
+                            <label for="phone-input">Phone Number</label>
+                            <input id="phone-input" type="tel" placeholder="Phone number (optional)" />
+                        </div>
+                        <div class="form-row">
+                            <label for="gender-select">Gender</label>
+                            <select id="gender-select">
+                                <option value="">Prefer not to say</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label for="weight-input">Weight (kg)</label>
+                            <input id="weight-input" type="number" step="0.1" placeholder="e.g. 70.5" />
+                        </div>
+                        <div class="form-row">
+                            <label for="age-input">Age</label>
+                            <input id="age-input" type="number" min="0" max="120" placeholder="Age" />
+                        </div>
+                        <div class="form-row">
+                            <label for="pt-name-input">PT Name</label>
+                            <input id="pt-name-input" type="text" placeholder="Personal Trainer" required />
+                        </div>
+                        <button id="save-customer-button" type="button" class="btn">Save Mapping</button>
+                        <div id="customer-message" class="info-box"></div>
+                    </form>
+                </div>
+
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Customer List</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="customers-table" class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Device ID</th>
+                                    <th>Customer</th>
+                                    <th>Phone</th>
+                                    <th>Gender</th>
+                                    <th>Weight(kg)</th>
+                                    <th>Age</th>
+                                    <th>PT</th>
+                                    <th>Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Workout History</h3>
+                    </div>
+                    <div class="form-row">
+                        <label for="customer-select">Customer</label>
+                        <select id="customer-select"></select>
+                    </div>
+                    <div class="form-row">
+                        <label for="record-date">Date</label>
+                        <input id="record-date" type="date" />
+                    </div>
+                    <button id="load-records-button" type="button" class="btn">Load Records</button>
+                    <div class="record-chart-section">
+                        <div class="section-header">
+                            <h3>Workout Load</h3>
+                        </div>
+                        <div class="chart-card">
+                            <canvas id="record-bar-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="records-table" class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Heart Rate</th>
+                                    <th>Protocol</th>
+                                    <th>Device</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="/static/admin.js"></script>
+    <!-- Chart.js for rendering graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Preserve token from query param into sessionStorage for API calls
+        (function(){
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                if (token) sessionStorage.setItem('adminToken', token);
+            } catch(e){ console.debug('No token in URL'); }
+        })();
+    </script>
+</body>
+</html>

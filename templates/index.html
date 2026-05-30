@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <title>Hoàng Gia Gym & Fitness</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+
+</head>
+
+<body>
+
+    <div class="main-container">
+
+        <div class="top-bar">
+            <h1>Hoàng Gia Gym & Fitness</h1>
+            <button id="login-button" class="login-btn">Login</button>
+        </div>
+
+        <!-- Global Status -->
+        <div id="global-status" class="global-status">
+            <div id="total-devices" class="device-count">
+                Devices: 0
+            </div>
+            <div id="connection-indicator" class="status-indicator disconnected">
+                ● DISCONNECTED
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <section class="dashboard-panel">
+                <h2>Live Device Dashboard</h2>
+                <div id="devices-grid" class="devices-grid">
+                    <!-- Device cards will be inserted here -->
+                </div>
+                <div id="error-message" class="error-box" style="display: none;">
+                    <div id="error-text">Error: -</div>
+                </div>
+                <div id="stats" class="stats-box">
+                    Messages: 0 | Errors: 0
+                </div>
+            </section>
+        </div>
+
+        <!-- Login Modal -->
+            <div id="login-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Admin Login</h2>
+                        <button class="modal-close" id="modal-close" type="button">&times;</button>
+                    </div>
+                    <form id="login-form" class="login-form">
+                        <div class="form-row">
+                            <label for="password-input">Password</label>
+                            <input id="password-input" type="password" placeholder="Enter admin password" required />
+                        </div>
+                        <div class="form-row">
+                            <label><input id="remember-checkbox" type="checkbox" /> Remember me</label>
+                        </div>
+                        <div id="login-message" class="info-box"></div>
+                        <button type="submit" class="btn">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/app.js"></script>
+
+        </body>
+
+        </html>

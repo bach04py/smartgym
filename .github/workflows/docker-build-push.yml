@@ -1,0 +1,49 @@
+name: Build and Publish Docker image
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      # Optional: deploy to Railway if you add RAILWAY_API_KEY as a secret.
+      # Uncomment and configure the step below if you want GH Actions to trigger Railway.
+      # - name: Deploy to Railway
+      #   if: secrets.RAILWAY_API_KEY != ''
+      #   uses: railwayapp/railway-action@v1
+      #   with:
+      #     apiKey: ${{ secrets.RAILWAY_API_KEY }}
+      #     command: up --yes
