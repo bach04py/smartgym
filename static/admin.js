@@ -27,8 +27,32 @@ async function downloadDatabase() {
         return;
     }
 
-    const downloadUrl = `/api/export-db?token=${encodeURIComponent(token)}`;
-    window.location.href = downloadUrl;
+    try {
+        const response = await fetch('/api/export-db', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Download failed: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition') || '';
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+        const filename = filenameMatch ? filenameMatch[1] : 'app.db';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Failed to download database:', error);
+        alert('Failed to download database. Please log in again and try once more.');
+    }
 }
 
 function setDefaultDate() {
@@ -93,8 +117,10 @@ async function loadCustomers() {
         const select = document.getElementById('customer-select');
         tableBody.innerHTML = '';
         select.innerHTML = '';
+        customersById.clear();
 
         customers.forEach(customer => {
+            customersById.set(String(customer.id), customer);
             const row = document.createElement('tr');
             row.dataset.customerId = customer.id;
             row.innerHTML = `
@@ -142,6 +168,7 @@ async function loadCustomers() {
 }
 
 let recordChart = null;
+const customersById = new Map();
 
 async function loadRecords() {
     const select = document.getElementById('customer-select');
@@ -152,7 +179,7 @@ async function loadRecords() {
 
     if (!customerId) {
         tableBody.innerHTML = '<tr><td colspan="4">Select a customer to view workout data.</td></tr>';
-        renderWorkoutSummary([]);
+        renderWorkoutSummary([], null);
         return;
     }
 
@@ -167,7 +194,7 @@ async function loadRecords() {
 
         if (!Array.isArray(records) || records.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4">No records for this date.</td></tr>';
-            renderWorkoutSummary([]);
+            renderWorkoutSummary([], customersById.get(String(customerId)));
             return;
         }
 
@@ -183,15 +210,15 @@ async function loadRecords() {
             tableBody.appendChild(row);
         });
 
-        renderWorkoutSummary(records);
+        renderWorkoutSummary(records, customersById.get(String(customerId)));
     } catch (error) {
         console.error('Failed to load records:', error);
         tableBody.innerHTML = '<tr><td colspan="4">Error loading records.</td></tr>';
-        renderWorkoutSummary([]);
+        renderWorkoutSummary([], customersById.get(String(customerId)));
     }
 }
 
-function renderWorkoutSummary(records) {
+function renderWorkoutSummary(records, customer) {
     const durationEl = document.getElementById('summary-duration');
     const caloriesEl = document.getElementById('summary-calories');
     const peakEl = document.getElementById('summary-peak');
@@ -211,21 +238,55 @@ function renderWorkoutSummary(records) {
     const durationSeconds = Math.max(0, (sorted[sorted.length - 1].timestamp || 0) - (sorted[0].timestamp || 0));
     const averageHeartRate = Math.round(records.reduce((sum, record) => sum + (record.heart_rate || 0), 0) / records.length);
     const peakHeartRate = Math.max(...records.map(record => record.heart_rate || 0));
-    const calorieRecords = sorted.filter(record => (record.heart_rate || 0) > 90);
-    const calorieDurationSeconds = sorted.reduce((total, record, index) => {
-        if (index === sorted.length - 1 || (record.heart_rate || 0) <= 90) return total;
-        return total + Math.max(0, (sorted[index + 1].timestamp || 0) - (record.timestamp || 0));
-    }, 0);
-    const calorieAverageHeartRate = calorieRecords.length
-        ? calorieRecords.reduce((sum, record) => sum + (record.heart_rate || 0), 0) / calorieRecords.length
-        : 0;
-    const calories = Math.round((calorieDurationSeconds / 60) * calorieAverageHeartRate * 0.6);
+    const calories = calculateWorkoutCalories(sorted, customer);
 
     durationEl.textContent = `${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`;
-    caloriesEl.textContent = calories.toString();
+    caloriesEl.textContent = calories == null ? '--' : calories.toString();
     peakEl.textContent = `${peakHeartRate} BPM`;
     averageEl.textContent = `${averageHeartRate} BPM`;
     countEl.textContent = records.length.toString();
+}
+
+function calculateWorkoutCalories(sortedRecords, customer) {
+    const weightKg = Number(customer?.weight_kg);
+    const summaryDate = document.getElementById('record-date')?.value;
+    const age = calculateAge(customer?.birthday, summaryDate);
+    if (!Number.isFinite(weightKg) || weightKg <= 0 || age == null) return null;
+
+    const weightLbs = weightKg * 2.20462;
+    const isFemale = String(customer?.gender || '').toLowerCase() === 'female';
+
+    const totalCalories = sortedRecords.reduce((total, record, index) => {
+        const heartRate = Number(record.heart_rate) || 0;
+        if (index === sortedRecords.length - 1 || heartRate <= 90) return total;
+
+        const seconds = Math.max(0, (sortedRecords[index + 1].timestamp || 0) - (record.timestamp || 0));
+        const caloriesPerMinute = isFemale
+            ? (-20.4022 + (0.4472 * heartRate) - (0.1263 * weightLbs) + (0.074 * age)) / 4.184
+            : (-55.0969 + (0.6309 * heartRate) + (0.1988 * weightLbs) + (0.2017 * age)) / 4.184;
+
+        return total + (Math.max(0, caloriesPerMinute) * (seconds / 60));
+    }, 0);
+
+    return Math.round(totalCalories);
+}
+
+function calculateAge(birthday, asOfDateValue) {
+    if (!birthday) return null;
+
+    const birthDate = new Date(`${birthday}T00:00:00`);
+    if (Number.isNaN(birthDate.getTime())) return null;
+
+    const asOfDate = asOfDateValue ? new Date(`${asOfDateValue}T00:00:00`) : new Date();
+    if (Number.isNaN(asOfDate.getTime())) return null;
+
+    let age = asOfDate.getFullYear() - birthDate.getFullYear();
+    const hasHadBirthdayThisYear =
+        asOfDate.getMonth() > birthDate.getMonth() ||
+        (asOfDate.getMonth() === birthDate.getMonth() && asOfDate.getDate() >= birthDate.getDate());
+
+    if (!hasHadBirthdayThisYear) age -= 1;
+    return age >= 0 ? age : null;
 }
 
 function getHeartRateColor(heartRate) {
