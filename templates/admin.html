@@ -98,12 +98,26 @@
                         <input id="record-date" type="date" />
                     </div>
                     <button id="load-records-button" type="button" class="btn">Load Records</button>
-                    <div class="record-chart-section">
-                        <div class="section-header">
-                            <h3>Workout Load</h3>
+                    <div id="workout-summary" class="summary-grid">
+                        <div class="summary-card">
+                            <div class="summary-label">Duration</div>
+                            <div id="summary-duration" class="summary-value">--:--</div>
                         </div>
-                        <div class="chart-card">
-                            <canvas id="record-bar-chart"></canvas>
+                        <div class="summary-card">
+                            <div class="summary-label">Calories</div>
+                            <div id="summary-calories" class="summary-value">--</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">Peak HR</div>
+                            <div id="summary-peak" class="summary-value">--</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">Average HR</div>
+                            <div id="summary-average" class="summary-value">--</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">Records</div>
+                            <div id="summary-count" class="summary-value">--</div>
                         </div>
                     </div>
                     <div class="table-wrapper">

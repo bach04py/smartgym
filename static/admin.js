@@ -149,7 +149,7 @@ async function loadRecords() {
 
     if (!customerId) {
         tableBody.innerHTML = '<tr><td colspan="4">Select a customer to view workout data.</td></tr>';
-        renderRecordBarChart([]);
+        renderWorkoutSummary([]);
         return;
     }
 
@@ -160,7 +160,7 @@ async function loadRecords() {
 
         if (records.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4">No records for this date.</td></tr>';
-            renderRecordBarChart([]);
+            renderWorkoutSummary([]);
             return;
         }
 
@@ -176,45 +176,87 @@ async function loadRecords() {
             tableBody.appendChild(row);
         });
 
-        renderRecordBarChart(records);
+        renderWorkoutSummary(records);
     } catch (error) {
         console.error('Failed to load records:', error);
         tableBody.innerHTML = '<tr><td colspan="4">Error loading records.</td></tr>';
-        renderRecordBarChart([]);
+        renderWorkoutSummary([]);
     }
 }
 
-function getHeartRateColor(heartRate) {
-    if (heartRate >= 170) return '#e74c3c';
-    if (heartRate >= 150) return '#f39c12';
-    if (heartRate >= 130) return '#f1c40f';
-    if (heartRate >= 110) return '#2ecc71';
-    return '#3498db';
-}
+function renderWorkoutSummary(records) {
+    const durationEl = document.getElementById('summary-duration');
+    const caloriesEl = document.getElementById('summary-calories');
+    const peakEl = document.getElementById('summary-peak');
+    const averageEl = document.getElementById('summary-average');
+    const countEl = document.getElementById('summary-count');
 
-function renderRecordBarChart(records) {
-    const canvas = document.getElementById('record-bar-chart');
-    if (!canvas) return;
-
-    if (recordChart) {
-        recordChart.destroy();
-        recordChart = null;
-    }
-
-    const ctx = canvas.getContext('2d');
     if (!records || records.length === 0) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px sans-serif';
-        ctx.fillText('Load a record to view the workout bar chart.', 10, 30);
+        durationEl.textContent = '--:--';
+        caloriesEl.textContent = '--';
+        peakEl.textContent = '--';
+        averageEl.textContent = '--';
+        countEl.textContent = '0';
         return;
     }
 
-    const labels = records.map(record => new Date(record.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    const values = records.map(record => record.heart_rate);
+    const sorted = [...records].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const durationSeconds = Math.max(0, (sorted[sorted.length - 1].timestamp || 0) - (sorted[0].timestamp || 0));
+    const averageHeartRate = Math.round(records.reduce((sum, record) => sum + (record.heart_rate || 0), 0) / records.length);
+    const peakHeartRate = Math.max(...records.map(record => record.heart_rate || 0));
+    const durationMinutes = durationSeconds / 60;
+    const calories = Math.round(durationMinutes * Math.max(averageHeartRate, 80) * 0.6);
+
+    durationEl.textContent = `${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`;
+    caloriesEl.textContent = calories.toString();
+    peakEl.textContent = `${peakHeartRate} BPM`;
+    averageEl.textContent = `${averageHeartRate} BPM`;
+    countEl.textContent = records.length.toString();
+}
+
+function getHeartRateColor(heartRate) {
+    if (heartRate < 80) return '#95a5a6';
+    if (heartRate < 90) return '#7f8c8d';
+    if (heartRate < 100) return '#e67e22';
+    if (heartRate < 125) return '#ee5859';
+    return '#c0392b';
+}
+
+async function renderCustomerChart(customerId) {
+    const canvasId = `chart-canvas-${customerId}`;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    // try to fetch records for this customer (no date to get all recent)
+    let records = [];
+    try {
+        const response = await fetch(`/api/records?customer_id=${encodeURIComponent(customerId)}`, { headers: getAuthHeaders() });
+        if (response.ok) records = await response.json();
+    } catch (e) {
+        console.warn('Failed to fetch records for chart', e);
+    }
+
+    if (!records || records.length === 0) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '16px sans-serif';
+        ctx.fillText('No records available to display.', 10, 30);
+        return;
+    }
+
+    records.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const labels = records.map(record => new Date((record.timestamp || 0) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const values = records.map(record => record.heart_rate || 0);
     const backgroundColors = values.map(getHeartRateColor);
 
-    recordChart = new Chart(ctx, {
+    if (canvas._chartInstance) {
+        try { canvas._chartInstance.destroy(); } catch (e) {}
+        canvas._chartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    canvas._chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
@@ -224,7 +266,6 @@ function renderRecordBarChart(records) {
                 backgroundColor: backgroundColors,
                 borderColor: backgroundColors,
                 borderWidth: 1,
-                hoverBackgroundColor: backgroundColors,
                 maxBarThickness: 24
             }]
         },
@@ -289,66 +330,3 @@ async function toggleGraphRow(customerId) {
     }
 }
 
-async function renderCustomerChart(customerId) {
-    const canvasId = `chart-canvas-${customerId}`;
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    // try to fetch records for this customer (no date to get all recent)
-    let records = [];
-    try {
-        const response = await fetch(`/api/records?customer_id=${encodeURIComponent(customerId)}`, { headers: getAuthHeaders() });
-        if (response.ok) records = await response.json();
-    } catch (e) {
-        console.warn('Failed to fetch records for chart', e);
-    }
-
-    // fallback: if no records returned, show message inside canvas area
-    if (!records || records.length === 0) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px sans-serif';
-        ctx.fillText('No records available to display.', 10, 30);
-        return;
-    }
-
-    // group records by day (or use timestamp order)
-    records.sort((a,b)=> (a.timestamp||0)-(b.timestamp||0));
-    const labels = records.map(r => new Date((r.timestamp||0)*1000).toLocaleString());
-    const hrData = records.map(r => r.heart_rate || null);
-
-    // destroy existing chart instance if present
-    if (canvas._chartInstance) {
-        try { canvas._chartInstance.destroy(); } catch(e){}
-        canvas._chartInstance = null;
-    }
-
-    const ctx = canvas.getContext('2d');
-    canvas._chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Heart Rate (BPM)',
-                data: hrData,
-                borderColor: '#ff3333',
-                backgroundColor: 'rgba(255,51,51,0.12)',
-                tension: 0.2,
-                pointRadius: 3,
-                fill: true,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { display: true, title: { display: false } },
-                y: { display: true, title: { display: true, text: 'BPM' }, suggestedMin: 40 }
-            },
-            plugins: {
-                legend: { display: true }
-            }
-        }
-    });
-}
