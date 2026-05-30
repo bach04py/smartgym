@@ -84,6 +84,9 @@ async function saveCustomerMapping() {
 async function loadCustomers() {
     try {
         const response = await fetch('/api/customers', { headers: getAuthHeaders() });
+        if (!response.ok) {
+            throw new Error(`Failed to load customers: ${response.status}`);
+        }
         const customers = await response.json();
 
         const tableBody = document.querySelector('#customers-table tbody');
@@ -156,9 +159,13 @@ async function loadRecords() {
     try {
         const params = new URLSearchParams({ customer_id: customerId, date });
         const response = await fetch(`/api/records?${params.toString()}`, { headers: getAuthHeaders() });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Failed to load records: ${response.status}`);
+        }
         const records = await response.json();
 
-        if (records.length === 0) {
+        if (!Array.isArray(records) || records.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4">No records for this date.</td></tr>';
             renderWorkoutSummary([]);
             return;
@@ -215,8 +222,8 @@ function renderWorkoutSummary(records) {
 }
 
 function getHeartRateColor(heartRate) {
-    if (heartRate < 80) return '#95a5a6';
-    if (heartRate < 90) return '#7f8c8d';
+    if (heartRate < 70) return '#bdc3c7';
+    if (heartRate < 90) return '#95a5a6';
     if (heartRate < 100) return '#e67e22';
     if (heartRate < 125) return '#ee5859';
     return '#c0392b';
