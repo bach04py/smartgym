@@ -273,6 +273,95 @@ h1 {
     margin-bottom: 0;
 }
 
+.top-bar-actions,
+.backup-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn,
+.logout-btn {
+    padding: 10px 16px;
+    background: #ff3333;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.95rem;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.btn:hover,
+.logout-btn:hover {
+    background: #d12a2a;
+    transform: translateY(-1px);
+}
+
+.btn.secondary {
+    background: #2d2d2d;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.btn.secondary:hover {
+    background: #444;
+}
+
+.admin-panel,
+.admin-section {
+    display: grid;
+    gap: 16px;
+}
+
+.admin-section {
+    margin-bottom: 28px;
+    padding: 18px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+}
+
+.section-header h3 {
+    font-size: 1.2rem;
+}
+
+.form-row {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.form-row input,
+.form-row select {
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.95);
+    color: #222;
+}
+
+.info-box {
+    min-height: 22px;
+    color: #e8e8e8;
+    font-size: 0.95rem;
+}
+
+.info-box.success {
+    color: #7cff98;
+}
+
+.info-box.error {
+    color: #ffb3b3;
+}
+
+.backup-settings {
+    color: #d8d8d8;
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
 .login-btn {
     padding: 12px 24px;
     background: #ff3333;
@@ -451,4 +540,3 @@ h1 {
     width: 100% !important;
     height: 320px !important;
 }
-

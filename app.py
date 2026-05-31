@@ -83,13 +83,18 @@ connection_status = {
 }
 
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "app.db"))
+BACKUP_DIR = os.getenv("BACKUP_DIR", os.path.join(os.path.dirname(__file__), "backups"))
+BACKUP_INTERVAL_SECONDS = int(os.getenv("BACKUP_INTERVAL_SECONDS", str(24*3600)))
+BACKUP_RETENTION_COUNT = int(os.getenv("BACKUP_RETENTION_COUNT", "20"))
 DATA_RETENTION_DAYS = int(os.getenv("DATA_RETENTION_DAYS", "30"))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(24*3600)))
 sessions = {}  # In-memory session store: {token: {created, expires}}
+backup_lock = asyncio.Lock()
 
 # Ensure data directory exists
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 
 def generate_session_token():
@@ -205,6 +210,94 @@ def init_db():
 
 
 init_db()
+
+
+def list_database_backups():
+    backups = []
+    for filename in os.listdir(BACKUP_DIR):
+        if not filename.endswith(".db"):
+            continue
+
+        path = os.path.join(BACKUP_DIR, filename)
+        if not os.path.isfile(path):
+            continue
+
+        stat = os.stat(path)
+        backups.append({
+            "filename": filename,
+            "size_bytes": stat.st_size,
+            "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        })
+
+    backups.sort(key=lambda item: item["created_at"], reverse=True)
+    return backups
+
+
+def prune_old_backups():
+    if BACKUP_RETENTION_COUNT <= 0:
+        return
+
+    backups = list_database_backups()
+    for backup in backups[BACKUP_RETENTION_COUNT:]:
+        try:
+            os.remove(os.path.join(BACKUP_DIR, backup["filename"]))
+        except OSError as exc:
+            logger.warning(f"Unable to remove old backup {backup['filename']}: {exc}")
+
+
+def create_database_backup(reason="manual"):
+    if not os.path.exists(DB_PATH):
+        raise FileNotFoundError("Database file not found")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"app_backup_{timestamp}_{reason}.db"
+    backup_path = os.path.join(BACKUP_DIR, filename)
+
+    source = sqlite3.connect(DB_PATH)
+    destination = sqlite3.connect(backup_path)
+    try:
+        source.backup(destination)
+        destination.commit()
+        integrity = destination.execute("PRAGMA integrity_check").fetchone()[0]
+        if integrity != "ok":
+            raise RuntimeError(f"Backup integrity check failed: {integrity}")
+    finally:
+        destination.close()
+        source.close()
+
+    prune_old_backups()
+    logger.info(f"Database backup created: {backup_path}")
+    return {
+        "filename": filename,
+        "path": backup_path,
+        "size_bytes": os.path.getsize(backup_path),
+        "created_at": datetime.fromtimestamp(os.path.getmtime(backup_path)).isoformat(),
+    }
+
+
+async def automatic_backup_loop():
+    if BACKUP_INTERVAL_SECONDS <= 0:
+        logger.info("Automatic database backup is disabled")
+        return
+
+    while True:
+        await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
+        try:
+            async with backup_lock:
+                await asyncio.to_thread(create_database_backup, "auto")
+        except Exception as exc:
+            logger.error(f"Automatic database backup failed: {exc}")
+
+
+@app.on_event("startup")
+async def startup_tasks():
+    try:
+        async with backup_lock:
+            await asyncio.to_thread(create_database_backup, "startup")
+    except Exception as exc:
+        logger.error(f"Startup database backup failed: {exc}")
+
+    asyncio.create_task(automatic_backup_loop())
 
 
 def cleanup_old_records():
@@ -478,6 +571,56 @@ async def export_database(request: Request):
         media_type="application/x-sqlite3",
         filename=os.path.basename(DB_PATH),
         headers={"Content-Disposition": f'attachment; filename="{os.path.basename(DB_PATH)}"'}
+    )
+
+
+@app.get("/api/backups")
+async def get_backups(request: Request):
+    """List local database backups stored on the server."""
+    require_auth(request)
+    return {
+        "backup_dir": BACKUP_DIR,
+        "retention_count": BACKUP_RETENTION_COUNT,
+        "interval_seconds": BACKUP_INTERVAL_SECONDS,
+        "backups": list_database_backups(),
+    }
+
+
+@app.post("/api/backups")
+async def create_backup(request: Request):
+    """Create a local SQLite database backup on the server."""
+    require_auth(request)
+
+    try:
+        async with backup_lock:
+            backup = await asyncio.to_thread(create_database_backup, "manual")
+    except FileNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Database file not found")
+    except Exception as exc:
+        logger.error(f"Manual database backup failed: {exc}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Backup failed")
+
+    return {"status": "ok", "backup": backup}
+
+
+@app.get("/api/backups/{filename}")
+async def download_backup(filename: str, request: Request):
+    """Download a specific backup file from the server backup directory."""
+    require_auth(request)
+
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename or not safe_filename.endswith(".db"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid backup filename")
+
+    backup_path = os.path.join(BACKUP_DIR, safe_filename)
+    if not os.path.isfile(backup_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup file not found")
+
+    return FileResponse(
+        backup_path,
+        media_type="application/x-sqlite3",
+        filename=safe_filename,
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'}
     )
 
 

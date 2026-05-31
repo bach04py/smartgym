@@ -20,6 +20,31 @@
 
                 <div class="admin-section">
                     <div class="section-header">
+                        <h3>Database Backup</h3>
+                    </div>
+                    <div class="backup-actions">
+                        <button id="create-backup-button" type="button" class="btn">Create Local Backup</button>
+                        <button id="refresh-backups-button" type="button" class="btn secondary">Refresh List</button>
+                    </div>
+                    <div id="backup-message" class="info-box"></div>
+                    <div id="backup-settings" class="backup-settings"></div>
+                    <div class="table-wrapper">
+                        <table id="backups-table" class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Backup File</th>
+                                    <th>Created</th>
+                                    <th>Size</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <div class="section-header">
                         <h3>Register Device</h3>
                     </div>
                     <form id="customer-form" class="admin-form">
@@ -138,7 +163,7 @@
         </div>
     </div>
 
-    <script src="/static/admin.js?v=5"></script>
+    <script src="/static/admin.js?v=6"></script>
     <!-- Chart.js for rendering graphs -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>

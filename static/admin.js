@@ -1,6 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
     initAdminUI();
     setDefaultDate();
+    loadBackups();
     loadCustomers();
     loadRecords();
 });
@@ -17,6 +18,8 @@ function initAdminUI() {
     document.getElementById('load-records-button').addEventListener('click', loadRecords);
     document.getElementById('logout-button').addEventListener('click', logout);
     document.getElementById('download-db-button').addEventListener('click', downloadDatabase);
+    document.getElementById('create-backup-button').addEventListener('click', createLocalBackup);
+    document.getElementById('refresh-backups-button').addEventListener('click', loadBackups);
     document.getElementById('customer-select').addEventListener('change', loadRecords);
 }
 
@@ -53,6 +56,130 @@ async function downloadDatabase() {
         console.error('Failed to download database:', error);
         alert('Failed to download database. Please log in again and try once more.');
     }
+}
+
+async function createLocalBackup() {
+    const messageNode = document.getElementById('backup-message');
+    messageNode.textContent = 'Creating backup...';
+    messageNode.className = 'info-box';
+
+    try {
+        const response = await fetch('/api/backups', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || result.message || `Backup failed: ${response.status}`);
+        }
+
+        messageNode.textContent = `Backup created: ${result.backup.filename}`;
+        messageNode.className = 'info-box success';
+        loadBackups();
+    } catch (error) {
+        console.error('Failed to create backup:', error);
+        messageNode.textContent = 'Failed to create backup. Please log in again and try once more.';
+        messageNode.className = 'info-box error';
+    }
+}
+
+async function loadBackups() {
+    const tableBody = document.querySelector('#backups-table tbody');
+    const settingsNode = document.getElementById('backup-settings');
+
+    if (!tableBody || !settingsNode) return;
+
+    tableBody.innerHTML = '<tr><td colspan="4">Loading backups...</td></tr>';
+
+    try {
+        const response = await fetch('/api/backups', { headers: getAuthHeaders() });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Failed to load backups: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const backups = Array.isArray(result.backups) ? result.backups : [];
+        settingsNode.textContent = `Local folder: ${result.backup_dir} | Auto backup: ${formatInterval(result.interval_seconds)} | Keep latest: ${result.retention_count}`;
+        tableBody.innerHTML = '';
+
+        if (backups.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4">No backups created yet.</td></tr>';
+            return;
+        }
+
+        backups.forEach(backup => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${backup.filename}</td>
+                <td>${new Date(backup.created_at).toLocaleString()}</td>
+                <td>${formatBytes(backup.size_bytes)}</td>
+                <td><button class="action-btn download-backup-button" data-filename="${backup.filename}">Download</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+
+        document.querySelectorAll('.download-backup-button').forEach(button => {
+            button.addEventListener('click', () => downloadBackup(button.dataset.filename));
+        });
+    } catch (error) {
+        console.error('Failed to load backups:', error);
+        tableBody.innerHTML = '<tr><td colspan="4">Error loading backups.</td></tr>';
+        settingsNode.textContent = '';
+    }
+}
+
+async function downloadBackup(filename) {
+    const token = sessionStorage.getItem('adminToken') || localStorage.getItem('adminToken');
+    if (!token) {
+        alert('Admin session not found. Please log in again.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/backups/${encodeURIComponent(filename)}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Download failed: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        triggerBlobDownload(blob, filename);
+    } catch (error) {
+        console.error('Failed to download backup:', error);
+        alert('Failed to download backup. Please log in again and try once more.');
+    }
+}
+
+function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function formatBytes(bytes) {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value < 0) return '--';
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatInterval(seconds) {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value <= 0) return 'disabled';
+    if (value % 86400 === 0) return `${value / 86400} day(s)`;
+    if (value % 3600 === 0) return `${value / 3600} hour(s)`;
+    return `${value} second(s)`;
 }
 
 function setDefaultDate() {
